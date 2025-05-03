@@ -62,8 +62,14 @@ def main():
         print("错误：路径不存在或不是文件夹！")
         sys.exit(1)
 
+    # jpg_folder, raw_folder = target_folder, target_folder  # 默认不整理
     # ========== 步骤 1：文件整理 ==========
-    jpg_folder, raw_folder = target_folder, target_folder  # 默认不整理
+    # 自动检测是否已存在 JPG/RAW 子文件夹
+    auto_jpg = os.path.join(target_folder, "JPG")
+    auto_raw = os.path.join(target_folder, "RAW")
+    # 初始化文件夹路径（如果用户手动创建了则优先使用）
+    jpg_folder = auto_jpg if os.path.exists(auto_jpg) else target_folder
+    raw_folder = auto_raw if os.path.exists(auto_raw) else target_folder
 
     # 询问是否需要整理
     organize_confirm = input("\n是否要将文件整理到 JPG/RAW 子文件夹？(y/n): ").lower().strip()
@@ -74,7 +80,17 @@ def main():
         print(f" - JPG 文件夹: {jpg_folder}")
         print(f" - RAW 文件夹: {raw_folder}")
     else:
-        print("保持原文件夹结构。")
+        # 用户选择不整理时，检测是否已有手动创建的文件夹
+        if os.path.exists(auto_jpg) or os.path.exists(auto_raw):
+            print(f"检测到手动创建的 JPG/RAW 子文件夹，将基于此整理")
+            jpg_folder = auto_jpg if os.path.exists(auto_jpg) else target_folder
+            raw_folder = auto_raw if os.path.exists(auto_raw) else target_folder
+        else:
+            print("保持原文件夹结构。")
+        print(f"当前路径:")
+        print(f" - JPG 文件夹: {jpg_folder}")
+        print(f" - RAW 文件夹: {raw_folder}")
+
 
     # ========== 步骤 2：清理文件 ==========
     # 收集 RAW 文件基本名
@@ -101,11 +117,15 @@ def main():
                 stats['jpg'] += 1
 
     # 检查 XMP 文件（修改后检测父文件夹）
-    for file in os.listdir(target_folder):  # 关键修改点
-        file_path = os.path.join(target_folder, file)
-        if os.path.isfile(file_path) and file.lower().endswith('.xmp'):
-            to_delete.append(file_path)
-            stats['xmp'] += 1
+    xmp_confirm = input("\n是否要删除.xmp文件？(y/n): ").lower().strip()
+    if xmp_confirm == 'y':
+        for file in os.listdir(target_folder):  # 关键修改点
+            file_path = os.path.join(target_folder, file)
+            if os.path.isfile(file_path) and file.lower().endswith('.xmp'):
+                to_delete.append(file_path)
+                stats['xmp'] += 1
+    else:
+        print(".xmp文件将不会被删除。")
 
     if not to_delete:
         print("\n没有需要清理的文件。")
@@ -125,17 +145,17 @@ def main():
     # 最终确认
     confirm = input("\n是否确认移至回收站？(y/n): ").lower().strip()
     if confirm == 'y':
-        delete_files(to_delete)
+        delete_files(to_delete,stats)
     else:
         print("操作已取消。")
 
-def delete_files(file_list):
+def delete_files(file_list,stats):
     """安全删除到回收站"""
     success, failed = 0, 0
     for path in file_list:
         try:
             send2trash(path)
-            print(f"已删除: {os.path.basename(path)}")
+            print(f"已删除: {os.path.basename(path)}  --共 {stats['jpg'] + stats['xmp']} 个，目前为第{success+1}个")
             success += 1
         except Exception as e:
             print(f"失败: {os.path.basename(path)} ({str(e)})")
