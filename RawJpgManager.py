@@ -3,6 +3,14 @@ import sys
 import shutil
 from send2trash import send2trash
 
+#整理并清理混杂的 RAW/JPG 文件
+#特点 ：自动创建 JPG/RAW 子文件夹结构
+# 清理冗余的 JPG 文件和 XMP 配置文件
+# 支持跳过已存在文件
+
+
+
+
 # 定义支持的 RAW 格式（可扩展）
 RAW_EXTENSIONS = {'.cr2', '.nef', '.arw', '.dng', '.raf'}
 
@@ -74,11 +82,15 @@ def main():
     # 询问是否需要整理
     organize_confirm = input("\n是否要将文件整理到 JPG/RAW 子文件夹？(y/n): ").lower().strip()
     if organize_confirm == 'y':
-        print("\n正在整理文件...")
-        jpg_folder, raw_folder = organize_files(target_folder)
-        print(f"\n整理后路径:")
-        print(f" - JPG 文件夹: {jpg_folder}")
-        print(f" - RAW 文件夹: {raw_folder}")
+        if os.path.exists(auto_jpg) or os.path.exists(auto_raw):
+            print(f"检测到手动创建的 JPG/RAW 子文件夹，将基于此整理")
+        else:
+            print("\n正在整理文件...")
+            jpg_folder, raw_folder = organize_files(target_folder)
+            print(f"\n整理后路径:")
+            print(f" - JPG 文件夹: {jpg_folder}")
+            print(f" - RAW 文件夹: {raw_folder}")
+
     else:
         # 用户选择不整理时，检测是否已有手动创建的文件夹
         if os.path.exists(auto_jpg) or os.path.exists(auto_raw):
@@ -116,14 +128,19 @@ def main():
                 to_delete.append(file_path)
                 stats['jpg'] += 1
 
-    # 检查 XMP 文件（修改后检测父文件夹）
+    # 检查 XMP 文件（修改后检测父文件夹、JPG和RAW子文件夹）
     xmp_confirm = input("\n是否要删除.xmp文件？(y/n): ").lower().strip()
     if xmp_confirm == 'y':
-        for file in os.listdir(target_folder):  # 关键修改点
-            file_path = os.path.join(target_folder, file)
-            if os.path.isfile(file_path) and file.lower().endswith('.xmp'):
-                to_delete.append(file_path)
-                stats['xmp'] += 1
+        # 检查三个目录：原始目录、JPG目录、RAW目录（使用集合去重）
+        directories_to_check = {target_folder, jpg_folder, raw_folder}
+        for directory in directories_to_check:
+            if not os.path.isdir(directory):
+                continue  # 跳过无效目录
+            for file in os.listdir(directory):
+                file_path = os.path.join(directory, file)
+                if os.path.isfile(file_path) and file.lower().endswith('.xmp'):
+                    to_delete.append(file_path)
+                    stats['xmp'] += 1
     else:
         print(".xmp文件将不会被删除。")
 
